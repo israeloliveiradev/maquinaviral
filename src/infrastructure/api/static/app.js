@@ -686,9 +686,153 @@ btnLoadTest.addEventListener('click', () => {
     updateSimulatorFromInputs();
     updateTemplatePreview();
     loadSourceVideoPreview('/storage/temp/sample_video.mp4');
+    
+    // Sync the textarea state to populate the carousel
+    syncStateFromTextarea();
+    
     showToast('Test vertical assets loaded! Click Dispatch to process.', 'success');
 });
 
+// ==========================================
+// 4B. Interactive Per-Video Crop state & Carousel
+// ==========================================
+
+let videoSourcesData = [];
+let activeVideoItem = null;
+
+const carouselGroup = document.getElementById('carousel-group');
+const uploadedVideosCarousel = document.getElementById('uploaded-videos-carousel');
+
+function syncStateFromTextarea() {
+    const lines = videoSourcesInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    // Keep items that are still in the textarea
+    videoSourcesData = videoSourcesData.filter(item => lines.includes(item.source));
+    
+    // Add new items from textarea
+    lines.forEach(line => {
+        const exists = videoSourcesData.some(item => item.source === line);
+        if (!exists) {
+            let url = line;
+            if (line.startsWith('storage/')) {
+                url = '/' + line;
+            }
+            videoSourcesData.push({
+                source: line,
+                url: url,
+                crop: null
+            });
+        }
+    });
+    
+    // If our active item was removed, reset it
+    if (activeVideoItem && !videoSourcesData.includes(activeVideoItem)) {
+        activeVideoItem = null;
+    }
+    
+    updateCarouselUI();
+}
+
+function updateCarouselUI() {
+    if (videoSourcesData.length > 0) {
+        carouselGroup.style.display = 'block';
+    } else {
+        carouselGroup.style.display = 'none';
+        activeVideoItem = null;
+        return;
+    }
+
+    uploadedVideosCarousel.innerHTML = '';
+    videoSourcesData.forEach((item, index) => {
+        const filename = item.source.split('/').pop().split('\\').pop();
+        const itemCard = document.createElement('div');
+        itemCard.className = `carousel-item-card ${activeVideoItem === item ? 'active' : ''}`;
+        if (item.crop) {
+            itemCard.classList.add('has-crop');
+        }
+        
+        // Dynamic styles for premium look
+        itemCard.style.cssText = `
+            flex: 0 0 auto;
+            padding: 8px 12px;
+            background: ${activeVideoItem === item ? 'rgba(168, 85, 247, 0.15)' : 'rgba(255, 255, 255, 0.02)'};
+            border: 1px solid ${activeVideoItem === item ? 'var(--primary)' : 'var(--border-color)'};
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 90px;
+            max-width: 140px;
+            text-align: center;
+            transition: all 0.2s ease-in-out;
+            box-shadow: ${activeVideoItem === item ? '0 0 8px rgba(168, 85, 247, 0.3)' : 'none'};
+        `;
+        
+        itemCard.innerHTML = `
+            <span style="font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; color: var(--text-color);" title="${filename}">${filename}</span>
+            <span style="font-size: 9px; color: ${item.crop ? 'var(--success)' : 'var(--text-muted)'}; font-weight: 700;">
+                ${item.crop ? '✂️ Custom' : 'Default Center'}
+            </span>
+        `;
+
+        itemCard.addEventListener('click', () => {
+            selectVideoItem(item);
+        });
+
+        uploadedVideosCarousel.appendChild(itemCard);
+    });
+}
+
+function selectVideoItem(item) {
+    activeVideoItem = item;
+    updateCarouselUI();
+
+    // Check "Crop Input Video" checkbox to show crop area
+    enableSourceCrop.checked = true;
+    sourceCropSection.style.display = 'flex';
+
+    // Load preview
+    loadSourceVideoPreview(item.url);
+
+    // If this item already has a crop, apply it to numeric inputs and crop box UI
+    if (item.crop) {
+        inputSrcX.value = item.crop.x;
+        inputSrcY.value = item.crop.y;
+        inputSrcW.value = item.crop.width;
+        inputSrcH.value = item.crop.height;
+        updateSrcSimulatorFromInputs();
+    }
+}
+
+function saveActiveVideoCrop() {
+    if (activeVideoItem && enableSourceCrop.checked) {
+        activeVideoItem.crop = {
+            x: parseInt(inputSrcX.value) || 0,
+            y: parseInt(inputSrcY.value) || 0,
+            width: parseInt(inputSrcW.value) || 100,
+            height: parseInt(inputSrcH.value) || 100
+        };
+        updateCarouselUI();
+    }
+}
+
+// Hook into inputs and drag events to save crop coordinates
+[inputSrcX, inputSrcY, inputSrcW, inputSrcH].forEach(input => {
+    input.addEventListener('change', saveActiveVideoCrop);
+    input.addEventListener('input', saveActiveVideoCrop);
+});
+
+sourceCropBox.addEventListener('mouseup', saveActiveVideoCrop);
+document.addEventListener('mousemove', () => {
+    if (isSrcDragging || isSrcResizing) {
+        saveActiveVideoCrop();
+    }
+});
+
+// Event listeners to sync manual text inputs / uploaded files
+videoSourcesInput.addEventListener('input', syncStateFromTextarea);
+videoSourcesInput.addEventListener('change', syncStateFromTextarea);
 
 // ==========================================
 // 5. API Submissions & Polling
@@ -699,14 +843,11 @@ renderForm.addEventListener('submit', async (e) => {
 
     const templateId = document.getElementById('template-id').value.trim();
     const layout = document.getElementById('layout-mode').value;
-    const videoSourcesRaw = document.getElementById('video-sources').value;
     
-    const videoSources = videoSourcesRaw
-        .split('\n')
-        .map(url => url.trim())
-        .filter(url => url.length > 0);
+    // Ensure state is fully synced from textarea
+    syncStateFromTextarea();
 
-    if (videoSources.length === 0) {
+    if (videoSourcesData.length === 0) {
         showToast('Please add at least one source video.', 'error');
         return;
     }
@@ -720,18 +861,31 @@ renderForm.addEventListener('submit', async (e) => {
             height: parseInt(inputH.value)
         },
         layout: layout,
-        video_sources: videoSources,
+        // Send as VideoSourceItem list: [{ source: string, crop: CropCoordinates | null }]
+        video_sources: videoSourcesData.map(item => ({
+            source: item.source,
+            crop: enableSourceCrop.checked ? item.crop : null
+        })),
         output_width: targetWidth,
-        output_height: targetHeight
+        output_height: targetHeight,
+        smart_crop: document.getElementById('enable-smart-crop').checked
     };
 
+    // Fallback: If "Crop Input Video" is checked globally but a video item does not have a custom crop yet,
+    // we assign the current source crop coordinates from inputs as its crop coordinates.
     if (enableSourceCrop.checked) {
-        payload.source_crop_coordinates = {
+        const fallbackCrop = {
             x: parseInt(inputSrcX.value),
             y: parseInt(inputSrcY.value),
             width: parseInt(inputSrcW.value),
             height: parseInt(inputSrcH.value)
         };
+        // Fill crop coordinates for items that don't have custom ones yet
+        payload.video_sources.forEach(item => {
+            if (!item.crop) {
+                item.crop = fallbackCrop;
+            }
+        });
     }
 
     const btnSubmit = document.getElementById('btn-submit');
@@ -949,9 +1103,9 @@ function updateBatchCardUI(batchId, data) {
                 </a>
             `;
         } else if (task.status === 'FAILED') {
-            const safeError = (task.error || 'Unknown error').replace(/'/g, "\\'");
+            const safeError = encodeURIComponent(task.error || 'Unknown error');
             actionsHtml = `
-                <button class="btn-error-info" title="View Error details" onclick="showErrorDetails('${safeError}')">
+                <button class="btn-error-info" title="View Error details" onclick="showErrorDetails(decodeURIComponent('${safeError}'))">
                     ⚠
                 </button>
             `;
@@ -1054,6 +1208,7 @@ window.addEventListener('click', (e) => {
 function init() {
     adjustSimulatorAspect();
     updateTemplatePreview();
+    syncStateFromTextarea();
     
     const history = getBatchHistory();
     if (history.length > 0) {

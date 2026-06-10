@@ -104,10 +104,14 @@
                     </div>
 
                     <!-- Source Video Cropping Toggle and Widget -->
-                    <div class="form-group" style="margin-top: 10px;">
+                    <div class="form-group" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; user-select: none;">
                             <input type="checkbox" id="enable-source-crop" style="width: 16px; height: 16px; margin: 0; cursor: pointer;">
                             <span>✂️ Crop Input Video (Optional)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; user-select: none; color: var(--primary);">
+                            <input type="checkbox" id="enable-smart-crop" style="width: 16px; height: 16px; margin: 0; cursor: pointer;">
+                            <span>✨ AI Auto-Center (Smart Crop)</span>
                         </label>
                     </div>
 
@@ -150,6 +154,14 @@
                                 <label for="src-coord-h">Source Height (px)</label>
                                 <input type="number" id="src-coord-h" min="10" value="360">
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Video List / Carousel Container for Option C -->
+                    <div class="form-group" id="carousel-group" style="display: none; margin-bottom: 15px;">
+                        <label>Select a video below to adjust its individual enquadramento:</label>
+                        <div id="uploaded-videos-carousel" class="uploaded-videos-carousel" style="display: flex; gap: 10px; overflow-x: auto; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0, 0, 0, 0.2); min-height: 80px; align-items: center;">
+                            <!-- Dynamic video items -->
                         </div>
                     </div>
 

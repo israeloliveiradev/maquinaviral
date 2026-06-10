@@ -52,6 +52,7 @@ async def execute_task_pipeline(
     video_source: str,
     output_width: Optional[int] = None,
     output_height: Optional[int] = None,
+    smart_crop: bool = False,
 ) -> str:
     """
     Executes the task processing pipeline:
@@ -122,6 +123,23 @@ async def execute_task_pipeline(
         
         # This will fail fast if the file is corrupted or not a valid video
         await renderer.get_media_metadata(str(local_video_path))
+
+        # 4B. Run smart auto-center subject detection if enabled and no manual crop is set
+        if not source_crop and smart_crop:
+            await redis_client.update_task_progress(
+                batch_id=batch_id,
+                task_id=task_id,
+                status=TaskStatus.PROBING,
+                progress=50.0
+            )
+            detected_crop = await asyncio.to_thread(
+                renderer.detect_subject_crop,
+                str(local_video_path),
+                coords.width,
+                coords.height
+            )
+            if detected_crop:
+                source_crop = detected_crop
 
         # 5. Define progress callback
         async def progress_callback(pct: float):
@@ -205,6 +223,7 @@ def process_video_task(
     video_source: str,
     output_width: Optional[int] = None,
     output_height: Optional[int] = None,
+    smart_crop: bool = False,
 ) -> str:
     """Celery task entry point wrapper executing the async pipeline."""
     return asyncio.run(
@@ -217,6 +236,7 @@ def process_video_task(
             layout_val=layout_val,
             video_source=video_source,
             output_width=output_width,
-            output_height=output_height
+            output_height=output_height,
+            smart_crop=smart_crop,
         )
     )

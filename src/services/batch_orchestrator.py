@@ -26,10 +26,11 @@ class BatchOrchestrator:
         template_id: str,
         coords: CropCoordinates,
         layout: OverlayLayout,
-        video_sources: List[str],
+        video_sources: List[Any],
         source_crop: Optional[CropCoordinates] = None,
         output_width: Optional[int] = None,
         output_height: Optional[int] = None,
+        smart_crop: bool = False,
     ) -> str:
         """
         Registers a rendering batch in Redis, schedules independent Celery tasks
@@ -39,14 +40,18 @@ class BatchOrchestrator:
         created_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         
         task_ids = []
-        for source in video_sources:
+        for item in video_sources:
             task_id = str(uuid.uuid4())
             task_ids.append(task_id)
+            
+            # Extract source string and custom crop (if present)
+            source_path = item.source
+            item_crop = item.crop if item.crop else source_crop
             
             # 1. Create and persist initial task state
             task_state = VideoTaskState(
                 task_id=task_id,
-                source=source,
+                source=source_path,
                 status=TaskStatus.PENDING,
                 progress=0.0
             )
@@ -58,11 +63,12 @@ class BatchOrchestrator:
                 task_id=task_id,
                 template_id=template_id,
                 coords_dict=coords.model_dump(),
-                source_crop_dict=source_crop.model_dump() if source_crop else None,
+                source_crop_dict=item_crop.model_dump() if item_crop else None,
                 layout_val=layout.value,
-                video_source=source,
+                video_source=source_path,
                 output_width=output_width,
-                output_height=output_height
+                output_height=output_height,
+                smart_crop=smart_crop
             )
             
         # 3. Create and persist Batch metadata

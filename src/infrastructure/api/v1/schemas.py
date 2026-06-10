@@ -4,6 +4,11 @@ from pydantic import BaseModel, Field
 from src.domain.models import CropCoordinates, OverlayLayout
 
 
+class VideoSourceItem(BaseModel):
+    source: str = Field(..., description="Path or URL of the video file.")
+    crop: Optional[CropCoordinates] = Field(None, description="Optional custom source crop coordinates for this video.")
+
+
 class BatchCreateRequest(BaseModel):
     template_id: str = Field(
         ...,
@@ -15,7 +20,7 @@ class BatchCreateRequest(BaseModel):
     )
     source_crop_coordinates: Optional[CropCoordinates] = Field(
         None,
-        description="Optional coordinates for cropping the input source videos."
+        description="Optional default coordinates for cropping the input source videos."
     )
     layout: OverlayLayout = Field(
         OverlayLayout.TEMPLATE_ON_TOP,
@@ -31,10 +36,14 @@ class BatchCreateRequest(BaseModel):
         description="Optional target height of the output video canvas.",
         gt=0
     )
-    video_sources: List[str] = Field(
+    video_sources: List[VideoSourceItem] = Field(
         ...,
-        description="List of paths or URLs of videos to process.",
+        description="List of video sources to process.",
         min_items=1
+    )
+    smart_crop: Optional[bool] = Field(
+        False,
+        description="Enable automatic AI face/subject detection and auto-centering."
     )
 
 

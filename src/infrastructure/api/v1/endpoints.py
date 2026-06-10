@@ -28,7 +28,8 @@ async def create_batch(payload: BatchCreateRequest):
             layout=payload.layout,
             video_sources=payload.video_sources,
             output_width=payload.output_width,
-            output_height=payload.output_height
+            output_height=payload.output_height,
+            smart_crop=payload.smart_crop
         )
         return BatchCreateResponse(
             batch_id=batch_id,

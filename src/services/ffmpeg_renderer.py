@@ -314,3 +314,120 @@ class FFmpegRenderer:
             
         logger.info(f"Render completed successfully: {output_path}")
         await progress_callback(100.0)
+
+    def detect_subject_crop(
+        self,
+        video_path: str,
+        target_width: int,
+        target_height: int
+    ) -> Optional[CropCoordinates]:
+        """
+        Analyzes the source video using OpenCV to detect faces and calculate optimal
+        crop coordinates to keep the subject centered at the target aspect ratio.
+        """
+        logger.info(f"Running smart auto-center subject detection on: {video_path}")
+        try:
+            import cv2
+            import numpy as np
+        except ImportError:
+            logger.warning("OpenCV is not installed. Falling back to default center crop.")
+            return None
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            logger.warning(f"Could not open video {video_path} for smart crop probing.")
+            return None
+
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        if width <= 0 or height <= 0 or frame_count <= 0:
+            cap.release()
+            return None
+
+        # Load OpenCV Haar cascade for face detection
+        # Use cv2.data.haarcascades to locate the file path on the system automatically
+        cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        face_cascade = cv2.CascadeClassifier(cascade_path)
+        if face_cascade.empty():
+            logger.warning("Haar cascade classifier file not found or empty.")
+            cap.release()
+            return None
+
+        # Sample up to 5 frames throughout the first half of the video (5%, 10%, 20%, 30%, 40%)
+        sample_percentages = [0.05, 0.1, 0.2, 0.3, 0.4]
+        sample_indices = [int(frame_count * p) for p in sample_percentages]
+        sample_indices = [idx for idx in sample_indices if 0 <= idx < frame_count]
+        if not sample_indices:
+            sample_indices = [0]
+
+        detected_x_centers = []
+
+        for idx in sample_indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                continue
+
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # Detect faces with standard parameters
+            faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(60, 60)
+            )
+
+            if len(faces) > 0:
+                # Select the largest face (assumed to be the main subject)
+                largest_face = max(faces, key=lambda rect: rect[2] * rect[3])
+                fx, fy, fw, fh = largest_face
+                face_x_center = fx + (fw / 2)
+                detected_x_centers.append(face_x_center)
+
+        cap.release()
+
+        # Target Aspect Ratio: target_width / target_height
+        target_ar = target_width / target_height
+        source_ar = width / height
+
+        # Compute crop width and height matching target aspect ratio
+        if source_ar > target_ar:
+            # Source is wider than target. Crop the width.
+            crop_h = height
+            crop_w = int(height * target_ar)
+        else:
+            # Source is taller than target. Crop the height.
+            crop_w = width
+            crop_h = int(width / target_ar)
+
+        # Force dimensions to be even numbers for FFmpeg compatibility
+        crop_w = (crop_w // 2) * 2
+        crop_h = (crop_h // 2) * 2
+
+        # Determine optimal X center
+        if detected_x_centers:
+            # Median center coordinates of detected faces
+            optimal_x_center = int(np.median(detected_x_centers))
+            logger.info(f"Smart crop: Face detected at center X={optimal_x_center}")
+        else:
+            # Fallback to physical center
+            optimal_x_center = width // 2
+            logger.info("Smart crop: No faces detected. Falling back to video center X.")
+
+        # Compute crop_x based on optimal_x_center
+        crop_x = optimal_x_center - (crop_w // 2)
+        crop_x = max(0, min(width - crop_w, crop_x))
+
+        # Center vertically (default fallback since face y-center can be jittery or cut heads)
+        crop_y = (height - crop_h) // 2
+        crop_y = max(0, min(height - crop_h, crop_y))
+
+        # Force crop_x and crop_y to even for FFmpeg
+        crop_x = (crop_x // 2) * 2
+        crop_y = (crop_y // 2) * 2
+
+        logger.info(f"Computed auto-center crop: x={crop_x}, y={crop_y}, w={crop_w}, h={crop_h}")
+        return CropCoordinates(x=crop_x, y=crop_y, width=crop_w, height=crop_h)
+
