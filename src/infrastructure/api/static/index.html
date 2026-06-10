@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Máquina Viral - Mass Video Editor Dashboard</title>
+    <!-- Modern Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    
+    <div class="app-container">
+        <!-- Sidebar Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon">⚡</div>
+                <div>
+                    <h1>MÁQUINA VIRAL</h1>
+                    <p class="subtitle">High-Performance Mass Video Engine</p>
+                </div>
+            </div>
+            <div class="system-stats">
+                <div class="stat-badge">
+                    <span class="dot active"></span> API: Online
+                </div>
+                <div class="stat-badge">
+                    <span class="dot active"></span> Worker: Active
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Layout -->
+        <main class="dashboard-grid">
+            
+            <!-- Left Side: Control Panel (Inputs & Interactive Workspace) -->
+            <section class="panel control-panel">
+                <div class="panel-header">
+                    <h2>Configure Rendering Batch</h2>
+                    <button id="btn-load-test" class="btn btn-secondary btn-sm" type="button">
+                        ⚡ Load Test Assets
+                    </button>
+                </div>
+
+                <form id="render-form" class="render-form">
+                    <!-- Template & Layout Configuration -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="template-id">Template Asset ID / Path / URL</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="template-id" required placeholder="e.g. sample_template.png" style="flex: 1;">
+                                <button type="button" id="btn-upload-template" class="btn btn-secondary" style="padding: 0 12px; height: 45px;" title="Upload Template Image">
+                                    📁 Upload
+                                </button>
+                                <input type="file" id="template-upload-input" accept="image/*" style="display: none;">
+                            </div>
+                            <div id="template-upload-progress" style="font-size: 10px; color: var(--primary); display: none; margin-top: 4px; font-weight: 700;"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="layout-mode">Overlay Layout Strategy</label>
+                            <select id="layout-mode">
+                                <option value="TEMPLATE_ON_TOP">Template on Top (Transparent Frame)</option>
+                                <option value="VIDEO_ON_TOP">Video on Top (Template Background)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Target Canvas Resolution -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="resolution-preset">Target Canvas Resolution</label>
+                            <select id="resolution-preset">
+                                <option value="16:9">Horizontal 16:9 (1920 x 1080)</option>
+                                <option value="9:16">Vertical 9:16 (1080 x 1920)</option>
+                                <option value="1:1">Square 1:1 (1080 x 1080)</option>
+                                <option value="custom">Custom Dimensions</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="custom-res-group" style="display: none;">
+                            <div style="display: flex; gap: 8px;">
+                                <div style="flex: 1;">
+                                    <label for="res-width" style="font-size: 10px; margin-bottom: 2px; display: block;">Width (px)</label>
+                                    <input type="number" id="res-width" value="1920" min="10" style="padding: 8px 10px; width: 100%;">
+                                </div>
+                                <div style="flex: 1;">
+                                    <label for="res-height" style="font-size: 10px; margin-bottom: 2px; display: block;">Height (px)</label>
+                                    <input type="number" id="res-height" value="1080" min="10" style="padding: 8px 10px; width: 100%;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Video Upload Dropzone -->
+                    <div class="form-group">
+                        <label>Upload Local Videos (Optional)</label>
+                        <div class="upload-dropzone" id="upload-dropzone">
+                            <span>📁 Click to choose or drag local videos here</span>
+                            <input type="file" id="video-upload-input" multiple accept="video/*" style="display: none;">
+                        </div>
+                        <div id="upload-progress-list" class="upload-progress-list"></div>
+                    </div>
+
+                    <!-- Source Video Cropping Toggle and Widget -->
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; user-select: none;">
+                            <input type="checkbox" id="enable-source-crop" style="width: 16px; height: 16px; margin: 0; cursor: pointer;">
+                            <span>✂️ Crop Input Video (Optional)</span>
+                        </label>
+                    </div>
+
+                    <div id="source-crop-section" class="source-crop-section" style="display: none; flex-direction: column; gap: 12px; margin-bottom: 15px; background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 14px; padding: 16px;">
+                        <div class="panel-sub-header">
+                            <h3>Source Video Crop Area</h3>
+                            <p class="help-text">Drag and resize the green box to select the region of the input video you want to keep</p>
+                        </div>
+                        
+                        <div class="source-simulator-wrapper" id="source-simulator-wrapper" style="width: 100%; display: flex; justify-content: center; align-items: center; background: #040306; border-radius: 10px; padding: 16px; border: 1px solid rgba(255, 255, 255, 0.03);">
+                            <!-- Visual simulator for input video crop -->
+                            <div id="source-simulator" class="source-simulator" style="width: 480px; height: 270px; background: radial-gradient(circle, #0e1611 0%, #050f09 100%); border: 2px dashed rgba(16, 185, 129, 0.15); border-radius: 8px; position: relative; overflow: hidden;">
+                                <video id="source-video-preview" muted loop playsinline style="width: 100%; height: 100%; object-fit: contain; pointer-events: none; opacity: 0.8;"></video>
+                                <div id="source-crop-box" class="source-crop-box">
+                                    <div class="source-crop-label">Source Crop</div>
+                                    <!-- Resize handlers -->
+                                    <div class="resize-handle nw"></div>
+                                    <div class="resize-handle ne"></div>
+                                    <div class="resize-handle sw"></div>
+                                    <div class="resize-handle se"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Numeric crop inputs -->
+                        <div class="source-coordinates-inputs" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+                            <div class="form-group">
+                                <label for="src-coord-x">Source X (px)</label>
+                                <input type="number" id="src-coord-x" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="src-coord-y">Source Y (px)</label>
+                                <input type="number" id="src-coord-y" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="src-coord-w">Source Width (px)</label>
+                                <input type="number" id="src-coord-w" min="10" value="640">
+                            </div>
+                            <div class="form-group">
+                                <label for="src-coord-h">Source Height (px)</label>
+                                <input type="number" id="src-coord-h" min="10" value="360">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input Video Sources -->
+                    <div class="form-group">
+                        <label for="video-sources">Source Video URLs or Paths (One per line)</label>
+                        <textarea id="video-sources" required rows="3" placeholder="sample_video.mp4&#10;https://example.com/other_video.mp4"></textarea>
+                    </div>
+
+                    <!-- Interactive Coordinates Workspace -->
+                    <div class="coordinates-section">
+                        <div class="panel-sub-header">
+                            <h3>Visual Overlay Position & Scale</h3>
+                            <p class="help-text">Drag and resize the purple box inside the screen simulator below to set coordinates</p>
+                        </div>
+                        
+                        <!-- Visual Drag & Drop Canvas Simulator (16:9 box representing template) -->
+                        <div class="simulator-wrapper">
+                            <div id="canvas-simulator" class="canvas-simulator">
+                                <div class="canvas-resolution-badge">1280 x 720 px</div>
+                                <div id="template-preview-overlay" class="template-preview-overlay"></div>
+                                <div id="crop-box" class="crop-box">
+                                    <div class="crop-label">Video Overlay</div>
+                                    <!-- Resize handlers -->
+                                    <div class="resize-handle nw"></div>
+                                    <div class="resize-handle ne"></div>
+                                    <div class="resize-handle sw"></div>
+                                    <div class="resize-handle se"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Numeric Inputs (linked dynamically with visual box) -->
+                        <div class="coordinates-inputs">
+                            <div class="form-group">
+                                <label for="coord-x">X Coordinate (px)</label>
+                                <input type="number" id="coord-x" required min="0" value="100">
+                            </div>
+                            <div class="form-group">
+                                <label for="coord-y">Y Coordinate (px)</label>
+                                <input type="number" id="coord-y" required min="0" value="100">
+                            </div>
+                            <div class="form-group">
+                                <label for="coord-w">Width (px)</label>
+                                <input type="number" id="coord-w" required min="10" value="400">
+                            </div>
+                            <div class="form-group">
+                                <label for="coord-h">Height (px)</label>
+                                <input type="number" id="coord-h" required min="10" value="400">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button type="submit" class="btn btn-primary btn-block" id="btn-submit">
+                        🚀 Dispatch Render Batch
+                    </button>
+                </form>
+            </section>
+
+            <!-- Right Side: Live Batches & Progress Monitoring -->
+            <section class="panel monitor-panel">
+                <div class="panel-header">
+                    <h2>Live Rendering Batches</h2>
+                    <button id="btn-clear-history" class="btn btn-secondary btn-sm" type="button">
+                        Clear History
+                    </button>
+                </div>
+
+                <div id="batches-list" class="batches-list">
+                    <!-- Empty state -->
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-icon">🎬</div>
+                        <h3>No rendering batches registered</h3>
+                        <p>Configure and dispatch a batch on the left to see live progress and results here.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Custom Video Player Modal -->
+    <div id="video-modal" class="modal">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h3 id="modal-video-title">Rendered Video Output</h3>
+                <span class="close-btn" id="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <video id="modal-video-player" controls autoplay></video>
+                <div class="modal-footer-info">
+                    <p id="modal-video-path"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast System -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

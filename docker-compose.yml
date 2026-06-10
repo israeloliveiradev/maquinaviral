@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: rendering_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+
+  api:
+    build: .
+    container_name: rendering_api
+    command: python run.py api
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - VIDEO_CODEC=libx264
+    volumes:
+      - ./storage:/app/storage
+      - ./templates:/app/templates
+      - ./src:/app/src
+      - ./run.py:/app/run.py
+      - ./sample_template.png:/app/sample_template.png
+      - ./sample_video.mp4:/app/sample_video.mp4
+    depends_on:
+      - redis
+    restart: always
+
+  worker:
+    build: .
+    container_name: rendering_worker
+    command: python run.py worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - VIDEO_CODEC=libx264
+    volumes:
+      - ./storage:/app/storage
+      - ./templates:/app/templates
+      - ./src:/app/src
+      - ./run.py:/app/run.py
+      - ./sample_template.png:/app/sample_template.png
+      - ./sample_video.mp4:/app/sample_video.mp4
+    depends_on:
+      - redis
+    restart: always
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: rendering_tunnel
+    restart: always
+    command: tunnel run --token $TUNNEL_TOKEN
+    depends_on:
+      - api
+
+volumes:
+  redis_data:
