@@ -34,7 +34,7 @@ ENV/
 
 # Application Specific
 .env
-storage/
+/storage/
 test_output.mp4
 test_output_vertical.mp4
 *.log
