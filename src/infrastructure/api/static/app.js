@@ -442,11 +442,19 @@ sourceVideoPreview.addEventListener('loadedmetadata', () => {
     sourceScaleX = sourceSimWidth / sourceVideoWidth;
     sourceScaleY = sourceSimHeight / sourceVideoHeight;
     
-    // Set default coordinates to full video cover
-    inputSrcX.value = 0;
-    inputSrcY.value = 0;
-    inputSrcW.value = sourceVideoWidth;
-    inputSrcH.value = sourceVideoHeight;
+    // Check if the currently active video item already has a crop configured
+    if (activeVideoItem && activeVideoItem.crop) {
+        inputSrcX.value = activeVideoItem.crop.x;
+        inputSrcY.value = activeVideoItem.crop.y;
+        inputSrcW.value = activeVideoItem.crop.width;
+        inputSrcH.value = activeVideoItem.crop.height;
+    } else {
+        // Set default coordinates to full video cover
+        inputSrcX.value = 0;
+        inputSrcY.value = 0;
+        inputSrcW.value = sourceVideoWidth;
+        inputSrcH.value = sourceVideoHeight;
+    }
     
     updateSrcSimulatorFromInputs();
 });
@@ -640,8 +648,16 @@ function uploadFileStream(file) {
             }
             videoSourcesInput.value = currentVal;
             
-            // Automatically preview the uploaded video in source crop simulator
-            loadSourceVideoPreview(data.url);
+            // Sync the textarea state to update the carousel UI immediately
+            syncStateFromTextarea();
+            
+            // Automatically select the newly uploaded video in the carousel and preview it
+            const newItem = videoSourcesData.find(item => item.source === data.temp_path);
+            if (newItem) {
+                selectVideoItem(newItem);
+            } else {
+                loadSourceVideoPreview(data.url);
+            }
             
             setTimeout(() => {
                 row.style.opacity = '0';
@@ -685,10 +701,14 @@ btnLoadTest.addEventListener('click', () => {
     
     updateSimulatorFromInputs();
     updateTemplatePreview();
-    loadSourceVideoPreview('/storage/temp/sample_video.mp4');
     
     // Sync the textarea state to populate the carousel
     syncStateFromTextarea();
+    
+    // Select the test video item
+    if (videoSourcesData.length > 0) {
+        selectVideoItem(videoSourcesData[0]);
+    }
     
     showToast('Test vertical assets loaded! Click Dispatch to process.', 'success');
 });
@@ -714,8 +734,21 @@ function syncStateFromTextarea() {
         const exists = videoSourcesData.some(item => item.source === line);
         if (!exists) {
             let url = line;
-            if (line.startsWith('storage/')) {
+            let normalized = line.replace(/\\/g, '/');
+            if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+                url = line;
+            } else if (normalized.includes('storage/')) {
+                let idx = normalized.indexOf('storage/');
+                url = '/' + normalized.substring(idx);
+            } else if (normalized.includes('templates/')) {
+                let idx = normalized.indexOf('templates/');
+                url = '/' + normalized.substring(idx);
+            } else if (normalized.startsWith('storage/')) {
                 url = '/' + line;
+            } else if (normalized.startsWith('/storage/')) {
+                url = line;
+            } else {
+                url = '/storage/temp/' + line;
             }
             videoSourcesData.push({
                 source: line,
@@ -735,7 +768,7 @@ function syncStateFromTextarea() {
 
 function updateCarouselUI() {
     if (videoSourcesData.length > 0) {
-        carouselGroup.style.display = 'block';
+        carouselGroup.style.display = 'flex';
     } else {
         carouselGroup.style.display = 'none';
         activeVideoItem = null;
@@ -942,7 +975,13 @@ function showToast(message, type = 'info') {
 
 // Local Storage History Management
 function getBatchHistory() {
-    return JSON.parse(localStorage.getItem('rendering_batches') || '[]');
+    try {
+        const history = JSON.parse(localStorage.getItem('rendering_batches') || '[]');
+        return Array.isArray(history) ? history.filter(id => typeof id === 'string') : [];
+    } catch (e) {
+        console.error("Error parsing batch history from localStorage:", e);
+        return [];
+    }
 }
 
 function saveBatchToHistory(batchId) {
@@ -979,6 +1018,7 @@ btnClearHistory.addEventListener('click', () => {
 // ==========================================
 
 function renderBatchCard(batchId) {
+    if (!batchId || typeof batchId !== 'string') return;
     emptyState.style.display = 'none';
 
     const existing = document.getElementById(`batch-card-${batchId}`);

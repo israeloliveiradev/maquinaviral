@@ -162,6 +162,12 @@ body {
     }
 }
 
+@media (max-width: 768px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Material 3 Card Panels */
 .panel {
     background: var(--bg-glass);
@@ -214,10 +220,15 @@ body {
     gap: 16px;
 }
 
+.form-row > * {
+    min-width: 0;
+}
+
 .form-group {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    width: 100%;
 }
 
 .form-group label {
@@ -229,6 +240,8 @@ body {
 .form-group input, 
 .form-group select, 
 .form-group textarea {
+    width: 100%;
+    min-width: 0;
     background: rgba(0, 0, 0, 0.15);
     border: 1px solid var(--border-color);
     border-radius: 12px;
@@ -1005,4 +1018,27 @@ body {
 
 .source-crop-box .resize-handle {
     border-color: var(--success);
+}
+
+/* Custom classes for layout fixes */
+.checkbox-group-row {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: center;
+    width: 100%;
+}
+
+.source-crop-section {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 15px;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 16px;
+    width: 100%;
 }
