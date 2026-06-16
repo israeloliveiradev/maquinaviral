@@ -1042,3 +1042,23 @@ body {
     padding: 16px;
     width: 100%;
 }
+
+/* Carousel layout styling to prevent container expansion */
+#carousel-group {
+    width: 100%;
+    min-width: 0;
+}
+
+.uploaded-videos-carousel {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    min-height: 80px;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
